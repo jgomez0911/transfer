@@ -1,0 +1,1275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QC Review</title>
+    <style>
+        :root {
+            --wf-red: #A6192E;
+            --wf-gold: #F4A900;
+            --wf-dark-gray: #333333;
+            --wf-light-gray: #F4F4F4;
+            --wf-border: #D3D3D3;
+            --wf-success-bg: #E6F4EA;
+            --wf-success-border: #137333;
+            --wf-warning-bg: #FFF4E5;
+            --wf-warning-border: #E65100;
+        }
+
+        body {
+            font-family: 'Arial', 'Helvetica', sans-serif;
+            background-color: #F9F9F9;
+            color: var(--wf-dark-gray);
+            margin: 0;
+            padding: 0;
+        }
+
+        .header {
+            background-color: var(--wf-red);
+            color: #FFFFFF;
+            padding: 15px 20px;
+            border-bottom: 5px solid var(--wf-gold);
+            margin-bottom: 25px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 0.5px;
+        }
+
+        .utility-bar {
+            display: flex;
+            gap: 10px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 0 20px 20px 20px;
+        }
+
+        .section-container {
+            margin-bottom: 30px;
+        }
+
+        .section-card {
+            background-color: #FFFFFF;
+            border: 1px solid var(--wf-border);
+            border-top: 4px solid var(--wf-red);
+            border-radius: 4px;
+            padding: 20px;
+            margin-bottom: 15px;
+            position: relative;
+            overflow-x: hidden;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        }
+
+        .section-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--wf-border);
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+
+        .section-header h2 {
+            margin: 0;
+            font-size: 18px;
+            color: var(--wf-red);
+            flex: 1;
+            text-align: center;
+        }
+
+        .collapse-toggle {
+            background: none;
+            border: none;
+            color: var(--wf-red);
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 20px;
+            text-align: left;
+        }
+
+        .section-card.is-collapsed > *:not(.section-header) {
+            display: none;
+        }
+
+        .section-card.is-collapsed {
+            padding-bottom: 10px;
+        }
+
+        /* Form Grid Layouts */
+        .form-grid-13 {
+            display: grid;
+            grid-template-columns: repeat(13, minmax(80px, 1fr));
+            gap: 10px;
+            width: 100%;
+        }
+
+        .form-grid-10 {
+            display: grid;
+            grid-template-columns: repeat(10, minmax(100px, 1fr));
+            gap: 10px;
+            width: 100%;
+        }
+
+        .form-grid-12 {
+            display: grid;
+            grid-template-columns: repeat(12, minmax(80px, 1fr));
+            gap: 10px;
+            width: 100%;
+        }
+
+        .form-grid-5 {
+            display: grid;
+            grid-template-columns: repeat(5, minmax(100px, 1fr));
+            gap: 10px;
+            width: 100%;
+        }
+
+        .label-row {
+            margin-bottom: 5px;
+        }
+
+        .label-row label {
+            font-size: 12px;
+            font-weight: bold;
+            color: #555555;
+            text-transform: uppercase;
+            text-align: center;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 45px;
+            white-space: normal;
+            line-height: 1.1;
+            padding-bottom: 3px;
+        }
+
+        .input-row { margin-bottom: 15px; }
+
+        .input-row input,
+        .input-row select,
+        .form-group input, 
+        .form-group select {
+            padding: 6px 10px;
+            border: 1px solid var(--wf-border);
+            border-radius: 3px;
+            font-size: 13px;
+            width: 100%;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+
+        input::-webkit-outer-spin-button,
+        input::-webkit-inner-spin-button {
+            -webkit-appearance: none;
+            appearance: none;
+            margin: 0;
+        }
+        input[type=number] {
+            -moz-appearance: textfield;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: var(--wf-red);
+        }
+
+        .sub-section-title {
+            font-size: 14px;
+            font-weight: bold;
+            margin: 15px 0 10px 0;
+            color: #444;
+            border-bottom: 1px dashed var(--wf-border);
+            padding-bottom: 5px;
+            text-align: center;
+        }
+
+        .doc-rows-container {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        .doc-row {
+            display: flex;
+            flex-direction: column;
+            align-items: stretch;
+            gap: 10px;
+            background-color: var(--wf-light-gray);
+            padding: 15px;
+            border-radius: 4px;
+            margin-bottom: 0;
+            border: 1px solid var(--wf-border);
+            transition: all 0.2s ease;
+            min-width: 0;
+        }
+
+        .doc-row.is-complete {
+            background-color: var(--wf-success-bg) !important;
+            border-color: var(--wf-success-border) !important;
+        }
+
+        .doc-row.is-hazard {
+            background-color: var(--wf-warning-bg) !important;
+            border-color: var(--wf-warning-border) !important;
+        }
+
+        .doc-field-wrapper {
+            display: flex;
+            flex-direction: column;
+            flex: 1;
+        }
+
+        .doc-field-wrapper label {
+            font-size: 11px;
+            font-weight: bold;
+            margin-bottom: 4px;
+            text-align: center;
+        }
+
+        .doc-field-wrapper input, 
+        .doc-field-wrapper select {
+            padding: 6px 10px;
+            border: 1px solid var(--wf-border);
+            border-radius: 3px;
+            font-size: 13px;
+            background-color: #FFFFFF;
+            width: 100%;
+            box-sizing: border-box;
+        }
+
+        .notes-wrapper {
+            display: flex;
+            flex-direction: column;
+            margin-top: 5px;
+        }
+
+        .notes-wrapper textarea {
+            padding: 6px 10px;
+            border: 1px solid var(--wf-border);
+            border-radius: 3px;
+            font-size: 13px;
+            height: 90px;
+            resize: none;
+            width: 100%;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+
+        .notes-wrapper label {
+            font-size: 11px;
+            font-weight: bold;
+            text-align: center;
+        }
+
+        .row-actions {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 5px;
+            border-top: 1px solid var(--wf-border);
+            padding-top: 10px;
+        }
+
+        .checkbox-container {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .checkbox-container input {
+            transform: scale(1.1);
+            cursor: pointer;
+        }
+
+        .btn {
+            padding: 6px 14px;
+            font-size: 12px;
+            font-weight: bold;
+            border-radius: 3px;
+            cursor: pointer;
+            border: 1px solid transparent;
+            transition: background-color 0.15s;
+        }
+
+        .btn-primary {
+            background-color: var(--wf-red);
+            color: #FFFFFF;
+        }
+
+        .btn-primary:hover {
+            background-color: #851222;
+        }
+
+        .btn-secondary {
+            background-color: #FFFFFF;
+            border-color: var(--wf-red);
+            color: var(--wf-red);
+        }
+
+        .btn-secondary:hover {
+            background-color: #FFF0F1;
+        }
+
+        .btn-danger {
+            background-color: #FFFFFF;
+            border-color: #CC0000;
+            color: #CC0000;
+        }
+
+        .btn-danger:hover {
+            background-color: #FFE6E6;
+        }
+
+        .btn-success {
+            background-color: #FFFFFF;
+            border-color: var(--wf-success-border);
+            color: var(--wf-success-border);
+        }
+
+        .btn-success:hover {
+            background-color: var(--wf-success-bg);
+        }
+
+        .btn-success.active {
+            background-color: var(--wf-success-border) !important;
+            color: #FFFFFF !important;
+        }
+
+        .btn-warning {
+            background-color: #FFFFFF;
+            border-color: var(--wf-warning-border);
+            color: var(--wf-warning-border);
+        }
+
+        .btn-warning:hover {
+            background-color: var(--wf-warning-bg);
+        }
+
+        .btn-warning.active {
+            background-color: var(--wf-warning-border) !important;
+            color: #FFFFFF !important;
+        }
+
+        .btn-small {
+            padding: 4px 8px;
+            font-size: 11px;
+        }
+
+        .section-actions-footer {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+
+    <script id="embedded-qc-state" type="application/json">{}</script>
+
+    <div class="header">
+        <h1>QC Notes</h1>
+        <div class="utility-bar">
+            <button class="btn btn-primary" onclick="exportToOneNote()">Copy Page to OneNote</button>
+        </div>
+    </div>
+
+    <div class="container">
+
+        <div class="section-container" id="event-section-group">
+            <div class="section-card" data-section-type="event">
+                <div class="section-header">
+                    <button class="collapse-toggle" onclick="toggleSectionCollapse(this)">-</button>
+                    <h2>Event Details</h2>
+                </div>
+                <div class="form-grid-5 input-row">
+                    <input type="text" placeholder="Event ID" class="event-id-marker">
+                    <input type="text" placeholder="LOB">
+                    <input type="text" placeholder="JOB ID #">
+                    <input type="text" placeholder="Approval By">
+                    <input type="text" placeholder="Approved Date">
+                </div>
+            </div>
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid var(--wf-border); margin: 30px 0;">
+
+        <div class="section-container" id="loan-section-group">
+            <div class="section-card" data-section-type="loan">
+                <div class="section-header">
+                    <button class="collapse-toggle" onclick="toggleSectionCollapse(this)">-</button>
+                    <h2>Loan Details</h2>
+                    <button class="btn btn-danger btn-small" onclick="removeSection(this)">Remove Section</button>
+                </div>
+                <div class="form-grid-13 label-row">
+                    <label>Modification Type</label>
+                    <label>Accounting System</label>
+                    <label>Borrower Name</label>
+                    <label>Borrower ID</label>
+                    <label>Loan ID</label>
+                    <label>Product ID</label>
+                    <label>Syndication / Participation Type</label>
+                    <label>Product</label>
+                    <label>Commitment Amount</label>
+                    <label>Proposed Commitment Amount</label>
+                    <label>Current Balance</label>
+                    <label>Loan Status (Text)</label>
+                    <label>Loan Status (Select)</label>
+                </div>
+                <div class="form-grid-13 input-row">
+                    <select>
+                        <option value="" disabled selected></option>
+                        <option>Standard</option>
+                        <option>HAMP</option>
+                        <option>Internal</option>
+                    </select>
+                    <select>
+                        <option value="" disabled selected></option>
+                        <option>System A</option>
+                        <option>System B</option>
+                        <option>System C</option>
+                    </select>
+                    <input type="text">
+                    <input type="number">
+                    <input type="number">
+                    <input type="number">
+                    <select>
+                        <option value="" disabled selected></option>
+                        <option>Syndicated</option>
+                        <option>Participated</option>
+                        <option>Direct</option>
+                    </select>
+                    <input type="text">
+                    <input type="number">
+                    <input type="number">
+                    <input type="number">
+                    <input type="text">
+                    <select>
+                        <option value="" disabled selected></option>
+                        <option>Active</option>
+                        <option>Pending</option>
+                        <option>Closed</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+        <div class="section-actions-footer">
+            <button class="btn btn-secondary" onclick="addLoanSection()">Add Loan Section</button>
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid var(--wf-border); margin: 30px 0;">
+
+        <div class="section-container" id="determinations-section-group">
+            <div class="section-card" data-section-type="determinations">
+                <div class="section-header">
+                    <button class="collapse-toggle" onclick="toggleSectionCollapse(this)">-</button>
+                    <h2>Determinations</h2>
+                    <button class="btn btn-danger btn-small" onclick="removeSection(this)">Remove Section</button>
+                </div>
+                <div class="form-grid-10 label-row">
+                    <label>Determination ID</label>
+                    <label>Flood Cert ID</label>
+                    <label>Cert Borrower Name</label>
+                    <label>Borrower ID</label>
+                    <label>Cert Loan ID</label>
+                    <label>Address</label>
+                    <label>City</label>
+                    <label>State</label>
+                    <label>Zip</label>
+                    <label>Flood Zone</label>
+                </div>
+                <div class="form-grid-10 input-row">
+                    <input type="number">
+                    <input type="number">
+                    <input type="text">
+                    <input type="number">
+                    <input type="number">
+                    <input type="text">
+                    <input type="text">
+                    <input type="text">
+                    <input type="text">
+                    <input type="text">
+                </div>
+
+                <div class="sub-section-title">Associated Verification Materials</div>
+                <div class="doc-rows-container"></div>
+                <button class="btn btn-secondary btn-small" onclick="addDocumentRow(this, true)">Add Document</button>
+                <button class="btn btn-secondary btn-small" onclick="addNoteRow(this)">Add Notes</button>
+            </div>
+        </div>
+        <div class="section-actions-footer">
+            <button class="btn btn-secondary" onclick="addDeterminationsSection()">Add Determinations Section</button>
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid var(--wf-border); margin: 30px 0;">
+
+        <div class="section-container" id="collateral-section-group">
+            <div class="section-card" data-section-type="collateral">
+                <div class="section-header">
+                    <button class="collapse-toggle" onclick="toggleSectionCollapse(this)">-</button>
+                    <h2>Collateral</h2>
+                    <button class="btn btn-danger btn-small" onclick="removeSection(this)">Remove Section</button>
+                </div>
+                <div class="form-grid-12 label-row">
+                    <label>Collateral ID</label>
+                    <label>Collateral Name</label>
+                    <label>Collateral Type</label>
+                    <label>Sub-type</label>
+                    <label>Address</label>
+                    <label>City</label>
+                    <label>State</label>
+                    <label>Zip Code</label>
+                    <label>County Subdivision</label>
+                    <label>Section</label>
+                    <label>Lot</label>
+                    <label>Block</label>
+                </div>
+                <div class="form-grid-12 input-row">
+                    <input type="number">
+                    <input type="text">
+                    <input type="text">
+                    <input type="text">
+                    <input type="text">
+                    <input type="text">
+                    <input type="text">
+                    <input type="text">
+                    <input type="text">
+                    <input type="text">
+                    <input type="text">
+                    <input type="text">
+                </div>
+
+                <div class="sub-section-title">Associated Collateral Documents</div>
+                <div class="doc-rows-container"></div>
+                <button class="btn btn-secondary btn-small" onclick="addDocumentRow(this, true)">Add Document</button>
+                <button class="btn btn-secondary btn-small" onclick="addNoteRow(this)">Add Notes</button>
+            </div>
+        </div>
+        <div class="section-actions-footer">
+            <button class="btn btn-secondary" onclick="addCollateralSection()">Add Collateral Section</button>
+        </div>
+
+        <hr style="border: 0; border-top: 1px solid var(--wf-border); margin: 30px 0;">
+
+        <div class="section-container" id="documents-section-group">
+            <div class="section-card" data-section-type="documents">
+                <div class="section-header">
+                    <h2>Documents</h2>
+                </div>
+                
+                <div class="doc-rows-container"></div>
+                <button class="btn btn-secondary btn-small" onclick="addDocumentRow(this, false)">Add Document Entry</button>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const templates = {};
+        let isInitialHydrationComplete = false;
+
+        window.addEventListener('DOMContentLoaded', () => {
+            templates.event = document.querySelector('[data-section-type="event"]').cloneNode(true);
+            templates.loan = document.querySelector('[data-section-type="loan"]').cloneNode(true);
+            templates.determinations = document.querySelector('[data-section-type="determinations"]').cloneNode(true);
+            templates.collateral = document.querySelector('[data-section-type="collateral"]').cloneNode(true);
+            templates.documents = document.querySelector('[data-section-type="documents"]').cloneNode(true);
+            
+            const frozenStateText = document.getElementById('embedded-qc-state').textContent;
+            let loadedState = null;
+
+            if (frozenStateText && frozenStateText.trim() !== "{}") {
+                loadedState = JSON.parse(frozenStateText);
+            } else {
+                const draft = localStorage.getItem('qc_workflow_autosave');
+                if (draft) loadedState = JSON.parse(draft);
+            }
+
+            if (loadedState) {
+                hydrateFormFromState(loadedState);
+            } else {
+                setupDefaultEmptyBoard();
+            }
+
+            isInitialHydrationComplete = true;
+
+            document.body.addEventListener('input', triggerAutosaveEvent);
+            document.body.addEventListener('change', triggerAutosaveEvent);
+        });
+
+        function setupDefaultEmptyBoard() {
+            document.querySelectorAll('[data-section-type="determinations"]').forEach(card => {
+                addDocumentRow(card.querySelector('.btn-secondary.btn-small'), true);
+            });
+            document.querySelectorAll('[data-section-type="collateral"]').forEach(card => {
+                addDocumentRow(card.querySelector('.btn-secondary.btn-small'), true);
+            });
+            document.querySelectorAll('[data-section-type="documents"]').forEach(card => {
+                addDocumentRow(card.querySelector('.btn-secondary.btn-small'), false);
+            });
+        }
+
+        function gatherCurrentFormState() {
+            const state = {
+                events: [], loans: [], determinations: [], collateral: [], documents: []
+            };
+
+            document.querySelectorAll('.section-card').forEach(card => {
+                const type = card.dataset.sectionType;
+                const isCollapsed = card.classList.contains('is-collapsed');
+                const originalTitle = card.dataset.originalTitle || '';
+
+                const headers = [];
+                card.querySelectorAll('.label-row label').forEach(lbl => {
+                    headers.push(lbl.textContent.trim());
+                });
+
+                if (headers.length === 0) {
+                    card.querySelectorAll('.input-row input, .input-row select').forEach(inp => {
+                        headers.push(inp.placeholder || "Field");
+                    });
+                }
+
+                const primaryInputs = [];
+                card.querySelectorAll('.input-row input, .input-row select').forEach(inp => {
+                    primaryInputs.push({ value: inp.value, tag: inp.tagName, label: '' });
+                });
+
+                const dynamicRows = [];
+                card.querySelectorAll('.doc-rows-container .doc-row').forEach(row => {
+                    const isNoteOnly = !row.querySelector('.input-target');
+                    
+                    if (isNoteOnly) {
+                        dynamicRows.push({
+                            type: 'note-only',
+                            text: row.querySelector('textarea').value
+                        });
+                    } else {
+                        const statusSelect = row.querySelector('select');
+                        const modField = row.querySelector('.mod-field input');
+                        dynamicRows.push({
+                            type: 'doc-entry',
+                            status: statusSelect ? statusSelect.value : '',
+                            modNum: modField ? modField.value : '',
+                            docName: row.querySelectorAll('input.input-target')[0]?.value || '',
+                            idNum: row.querySelectorAll('input.input-target')[1]?.value || '',
+                            notesVisible: row.querySelector('.notes-wrapper').style.display === 'flex',
+                            notesText: row.querySelector('.notes-wrapper textarea').value,
+                            isComplete: row.classList.contains('is-complete'),
+                            isHazard: row.classList.contains('is-hazard')
+                        });
+                    }
+                });
+
+                const structuralData = { primaryInputs, headers, dynamicRows, isCollapsed, originalTitle };
+                if (type === 'event') state.events.push(structuralData);
+                if (type === 'loan') state.loans.push(structuralData);
+                if (type === 'determinations') state.determinations.push(structuralData);
+                if (type === 'collateral') state.collateral.push(structuralData);
+                if (type === 'documents') state.documents.push(structuralData);
+            });
+
+            return state;
+        }
+
+        function triggerAutosaveEvent() {
+            if (!isInitialHydrationComplete) return;
+            const state = gatherCurrentFormState();
+            localStorage.setItem('qc_workflow_autosave', JSON.stringify(state));
+        }
+
+        function hydrateFormFromState(state) {
+            document.getElementById('event-section-group').innerHTML = '';
+            document.getElementById('loan-section-group').innerHTML = '';
+            document.getElementById('determinations-section-group').innerHTML = '';
+            document.getElementById('collateral-section-group').innerHTML = '';
+            document.getElementById('documents-section-group').innerHTML = '';
+
+            rebuildHydratedSections(state.events, 'event', 'event-section-group');
+            rebuildHydratedSections(state.loans, 'loan', 'loan-section-group');
+            rebuildHydratedSections(state.determinations, 'determinations', 'determinations-section-group');
+            rebuildHydratedSections(state.collateral, 'collateral', 'collateral-section-group');
+            rebuildHydratedSections(state.documents, 'documents', 'documents-section-group');
+        }
+
+        function rebuildHydratedSections(sectionDataArray, type, targetGroupId) {
+            const container = document.getElementById(targetGroupId);
+            sectionDataArray.forEach(data => {
+                const clone = templates[type].cloneNode(true);
+                
+                const inputs = clone.querySelectorAll('.input-row input, .input-row select');
+                data.primaryInputs.forEach((inpData, index) => {
+                    if(inputs[index]) inputs[index].value = inpData.value;
+                });
+
+                const rowsContainer = clone.querySelector('.doc-rows-container');
+                if (rowsContainer) rowsContainer.innerHTML = '';
+
+                if(data.dynamicRows) {
+                    data.dynamicRows.forEach(row => {
+                        if (row.type === 'note-only') {
+                            injectHydratedNoteRow(rowsContainer, row.text);
+                        } else {
+                            injectHydratedDocRow(rowsContainer, row, (type !== 'documents'));
+                        }
+                    });
+                }
+
+                if (data.isCollapsed) {
+                    clone.classList.add('is-collapsed');
+                    clone.dataset.originalTitle = data.originalTitle;
+                    clone.querySelector('h2').textContent = data.originalTitle ? "Compressed Entry - Fixed State" : "Review Locked";
+                }
+
+                container.appendChild(clone);
+            });
+        }
+
+        function injectHydratedDocRow(container, data, includeCompleteCheckbox) {
+            const docRow = document.createElement('div');
+            docRow.className = 'doc-row';
+            if (data.isComplete) docRow.classList.add('is-complete');
+            if (data.isHazard) docRow.classList.add('is-hazard');
+
+            const nameWrapper = document.createElement('div');
+            nameWrapper.className = 'doc-field-wrapper';
+            nameWrapper.innerHTML = `<input type="text" class="input-target" placeholder="Document Name" value="${escapeHtml(data.docName)}">`;
+            
+            const idWrapper = document.createElement('div');
+            idWrapper.className = 'doc-field-wrapper';
+            idWrapper.innerHTML = `<input type="text" class="input-target" placeholder="ID #" value="${escapeHtml(data.idNum)}">`;
+
+            const statusWrapper = document.createElement('div');
+            statusWrapper.className = 'doc-field-wrapper';
+            statusWrapper.innerHTML = `
+                <select class="input-target" onchange="const mod = this.closest('.doc-row').querySelector('.mod-field'); mod.style.display = this.value.includes('-mod') ? 'flex' : 'none';">
+                    <option value="draft" ${data.status === 'draft' ? 'selected':''}>Draft</option>
+                    <option value="draft-mod" ${data.status === 'draft-mod' ? 'selected':''}>Draft (Modified)</option>
+                    <option value="executed" ${data.status === 'executed' ? 'selected':''}>Executed</option>
+                    <option value="executed-mod" ${data.status === 'executed-mod' ? 'selected':''}>Executed (Modified)</option>
+                    <option value="recorded" ${data.status === 'recorded' ? 'selected':''}>Recorded</option>
+                    <option value="recorded-mod" ${data.status === 'recorded-mod' ? 'selected':''}>Recorded (Modified)</option>
+                </select>
+            `;
+
+            const modWrapper = document.createElement('div');
+            modWrapper.className = 'doc-field-wrapper mod-field';
+            modWrapper.style.display = data.status.includes('-mod') ? 'flex' : 'none';
+            modWrapper.style.flex = '0 0 70px';
+            modWrapper.innerHTML = `<input type="number" class="input-target" placeholder="Mod #" min="1" value="${data.modNum}">`;
+
+            const statusModRow = document.createElement('div');
+            statusModRow.className = 'doc-flex-row';
+            statusModRow.style.display = 'flex';
+            statusModRow.style.gap = '10px';
+            statusModRow.style.marginBottom = '5px';
+            statusModRow.appendChild(modWrapper);
+            statusModRow.appendChild(statusWrapper);
+
+            const nameIdRow = document.createElement('div');
+            nameIdRow.style.display = 'flex';
+            nameIdRow.style.gap = '10px';
+            nameIdRow.appendChild(nameWrapper);
+            nameIdRow.appendChild(idWrapper);
+
+            docRow.appendChild(statusModRow);
+            docRow.appendChild(nameIdRow);
+
+            const notesWrapper = document.createElement('div');
+            notesWrapper.className = 'notes-wrapper';
+            notesWrapper.style.display = data.notesVisible ? 'flex' : 'none';
+            notesWrapper.innerHTML = `<label>Notes</label><textarea placeholder="Enter internal QC processing remarks...">${escapeHtml(data.notesText)}</textarea>`;
+            docRow.appendChild(notesWrapper);
+
+            const actionsWrapper = document.createElement('div');
+            actionsWrapper.className = 'row-actions';
+
+            const notesToggle = document.createElement('label');
+            notesToggle.className = 'checkbox-container';
+            notesToggle.innerHTML = `<input type="checkbox" ${data.notesVisible ? 'checked':''} onchange="toggleNotesInput(this)"> Notes`;
+
+            const completeBtn = document.createElement('button');
+            completeBtn.className = `btn btn-success btn-small ${data.isComplete ? 'active':''}`;
+            completeBtn.type = 'button';
+            completeBtn.innerHTML = '✓';
+            completeBtn.onclick = function() {
+                const row = this.closest('.doc-row');
+                row.classList.toggle('is-complete');
+                this.classList.toggle('active');
+                triggerAutosaveEvent();
+            };
+
+            actionsWrapper.appendChild(notesToggle);
+            actionsWrapper.appendChild(completeBtn);
+
+            const hazardBtn = document.createElement('button');
+            hazardBtn.className = `btn btn-warning btn-small ${data.isHazard ? 'active':''}`;
+            hazardBtn.type = 'button';
+            hazardBtn.innerHTML = '⚠️';
+            hazardBtn.onclick = function() {
+                const row = this.closest('.doc-row');
+                row.classList.toggle('is-hazard');
+                this.classList.toggle('active');
+                triggerAutosaveEvent();
+            };
+            actionsWrapper.appendChild(hazardBtn);
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'btn btn-danger btn-small';
+            deleteBtn.type = 'button';
+            deleteBtn.textContent = 'Remove';
+            deleteBtn.onclick = function() { docRow.remove(); };
+            
+            actionsWrapper.appendChild(deleteBtn);
+            docRow.appendChild(actionsWrapper);
+            container.appendChild(docRow);
+        }
+
+        function injectHydratedNoteRow(container, textValue) {
+            const docRow = document.createElement('div');
+            docRow.className = 'doc-row';
+
+            const notesWrapper = document.createElement('div');
+            notesWrapper.className = 'notes-wrapper';
+            notesWrapper.style.display = 'flex';
+            notesWrapper.innerHTML = `<textarea placeholder="notes....">${escapeHtml(textValue)}</textarea>`;
+            docRow.appendChild(notesWrapper);
+
+            const actionsWrapper = document.createElement('div');
+            actionsWrapper.className = 'row-actions';
+            actionsWrapper.style.justifyContent = 'flex-end';
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'btn btn-danger btn-small';
+            deleteBtn.type = 'button';
+            deleteBtn.textContent = 'Remove';
+            deleteBtn.onclick = function() { docRow.remove(); };
+
+            actionsWrapper.appendChild(deleteBtn);
+            docRow.appendChild(actionsWrapper);
+            container.appendChild(docRow);
+        }
+
+        // ==========================================================================
+        // ONENOTE / WORD EXPORT (NATIVE DOM SELECTION)
+        // ==========================================================================
+
+        function exportToOneNote() {
+            const state = gatherCurrentFormState();
+            const rawEventId = document.querySelector('.event-id-marker')?.value || '';
+            const safeEventId = rawEventId.trim() || 'UNTITLED_EVENT';
+
+            function esc(str) {
+                if (!str) return '';
+                return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+            }
+
+            let bodyHtml = `
+                <div style="font-family: Calibri, Arial, sans-serif; font-size: 11pt; color: #333333;">
+                    <h1 style="font-size: 18pt; color: #A6192E; margin-bottom: 2px; border-bottom: 3px solid #A6192E; padding-bottom: 4px;">
+                        QC Review Report &mdash; Event: ${esc(safeEventId)}
+                    </h1>
+                    <p style="font-size: 9pt; color: #666666; margin-top: 4px; margin-bottom: 16px;">
+                        Generated on ${new Date().toLocaleString()}
+                    </p>
+            `;
+
+            const categories = [
+                { key: 'events', label: 'Event Details' },
+                { key: 'loans', label: 'Loan Details' },
+                { key: 'determinations', label: 'Determinations' },
+                { key: 'collateral', label: 'Collateral' },
+                { key: 'documents', label: 'Documents' }
+            ];
+
+            categories.forEach(cat => {
+                const entries = state[cat.key];
+                if (!entries || entries.length === 0) return;
+
+                bodyHtml += `
+                    <h2 style="font-size: 13pt; color: #111111; margin-top: 20px; margin-bottom: 6px; border-bottom: 1px solid #CCCCCC; padding-bottom: 2px;">
+                        ${cat.label}
+                    </h2>
+                `;
+
+                entries.forEach((entry, idx) => {
+                    if (entries.length > 1) {
+                        bodyHtml += `<p style="font-weight: bold; font-size: 10pt; color: #555555; margin-bottom: 4px;">Entry #${idx + 1}</p>`;
+                    }
+
+                    if (entry.headers && entry.headers.length > 0) {
+                        bodyHtml += `
+                            <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; border: 1px solid #CCCCCC; margin-bottom: 10px; font-size: 10pt; font-family: Calibri, Arial, sans-serif;">
+                                <thead>
+                                    <tr style="background-color: #F2F2F2;">
+                                        ${entry.headers.map(h => `<th style="border: 1px solid #CCCCCC; padding: 6px; text-align: left; background-color: #F2F2F2; font-weight: bold;">${esc(h)}</th>`).join('')}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr>
+                                        ${entry.primaryInputs.map(inp => `<td style="border: 1px solid #CCCCCC; padding: 6px; vertical-align: top;">${esc(inp.value) || '&nbsp;'}</td>`).join('')}
+                                    </tr>
+                                </tbody>
+                            </table>
+                        `;
+                    }
+
+                    if (entry.dynamicRows && entry.dynamicRows.length > 0) {
+                        bodyHtml += `
+                            <table border="1" cellpadding="6" cellspacing="0" style="border-collapse: collapse; width: 100%; border: 1px solid #CCCCCC; margin-top: 6px; margin-bottom: 14px; font-size: 10pt; font-family: Calibri, Arial, sans-serif;">
+                                <thead>
+                                    <tr style="background-color: #EAEAEA;">
+                                        <th style="border: 1px solid #CCCCCC; padding: 5px; text-align: left; width: 25%; background-color: #EAEAEA;">Doc Name</th>
+                                        <th style="border: 1px solid #CCCCCC; padding: 5px; text-align: left; width: 15%; background-color: #EAEAEA;">ID #</th>
+                                        <th style="border: 1px solid #CCCCCC; padding: 5px; text-align: left; width: 15%; background-color: #EAEAEA;">Status</th>
+                                        <th style="border: 1px solid #CCCCCC; padding: 5px; text-align: center; width: 10%; background-color: #EAEAEA;">Flag</th>
+                                        <th style="border: 1px solid #CCCCCC; padding: 5px; text-align: left; width: 35%; background-color: #EAEAEA;">Notes</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                        `;
+
+                        entry.dynamicRows.forEach(row => {
+                            if (row.type === 'note-only') {
+                                bodyHtml += `
+                                    <tr style="background-color: #FAFAFA;">
+                                        <td colspan="5" style="border: 1px solid #CCCCCC; padding: 6px; font-style: italic; color: #555555;">
+                                            <strong>[Note]</strong> ${esc(row.text) || 'No content entered'}
+                                        </td>
+                                    </tr>
+                                `;
+                            } else {
+                                const statusDisplay = row.modNum ? `${row.status} (Mod ${row.modNum})` : (row.status || 'None');
+                                let flagDisplay = '-';
+                                if (row.isComplete) flagDisplay = '<span style="color: #137333; font-weight: bold;">✓ OK</span>';
+                                if (row.isHazard) flagDisplay = '<span style="color: #E65100; font-weight: bold;">⚠️ Hazard</span>';
+
+                                bodyHtml += `
+                                    <tr>
+                                        <td style="border: 1px solid #CCCCCC; padding: 5px; vertical-align: top;">${esc(row.docName) || '-'}</td>
+                                        <td style="border: 1px solid #CCCCCC; padding: 5px; vertical-align: top;">${esc(row.idNum) || '-'}</td>
+                                        <td style="border: 1px solid #CCCCCC; padding: 5px; vertical-align: top;">${esc(statusDisplay)}</td>
+                                        <td style="border: 1px solid #CCCCCC; padding: 5px; vertical-align: top; text-align: center;">${flagDisplay}</td>
+                                        <td style="border: 1px solid #CCCCCC; padding: 5px; vertical-align: top; background-color: #FCFCFC;">${esc(row.notesText) || '-'}</td>
+                                    </tr>
+                                `;
+                            }
+                        });
+
+                        bodyHtml += `
+                                </tbody>
+                            </table>
+                        `;
+                    }
+                });
+            });
+
+            bodyHtml += `</div>`;
+
+            const tempContainer = document.createElement('div');
+            tempContainer.innerHTML = bodyHtml;
+            tempContainer.style.position = 'fixed';
+            tempContainer.style.left = '-9999px';
+            tempContainer.style.top = '0';
+            document.body.appendChild(tempContainer);
+
+            const range = document.createRange();
+            range.selectNodeContents(tempContainer);
+            const selection = window.getSelection();
+            selection.removeAllRanges();
+            selection.addRange(range);
+
+            let copied = false;
+            try {
+                copied = document.execCommand('copy');
+            } catch (err) {
+                console.error("DOM Copy error:", err);
+            }
+
+            selection.removeAllRanges();
+            document.body.removeChild(tempContainer);
+
+            if (copied) {
+                alert(`QC Review for Event ${safeEventId} copied!\n\nSwitch to OneNote and press Ctrl + V.`);
+            } else {
+                alert("Clipboard copy failed. Ensure the page has focus before clicking.");
+            }
+        }
+
+        function escapeHtml(str) {
+            if(!str) return '';
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
+        function addLoanSection() {
+            const clone = templates.loan.cloneNode(true);
+            clearInputs(clone);
+            document.getElementById('loan-section-group').appendChild(clone);
+            triggerAutosaveEvent();
+        }
+
+        function addDeterminationsSection() {
+            const clone = templates.determinations.cloneNode(true);
+            clearInputs(clone);
+            clone.querySelector('.doc-rows-container').innerHTML = '';
+            document.getElementById('determinations-section-group').appendChild(clone);
+            addDocumentRow(clone.querySelector('.btn-secondary.btn-small'), true);
+            triggerAutosaveEvent();
+        }
+
+        function addCollateralSection() {
+            const clone = templates.collateral.cloneNode(true);
+            clearInputs(clone);
+            clone.querySelector('.doc-rows-container').innerHTML = '';
+            document.getElementById('collateral-section-group').appendChild(clone);
+            addDocumentRow(clone.querySelector('.btn-secondary.btn-small'), true);
+            triggerAutosaveEvent();
+        }
+
+        function removeSection(button) {
+            const card = button.closest('.section-card');
+            const parentGroup = card.parentNode;
+            if (parentGroup.querySelectorAll('.section-card').length > 1) {
+                card.remove();
+                triggerAutosaveEvent();
+            } else {
+                alert("At least one active entry layout for this category must remain on the board.");
+            }
+        }
+
+        function addDocumentRow(button, includeCompleteCheckbox = true) {
+            const container = button.parentNode.querySelector('.doc-rows-container');
+            const docRow = document.createElement('div');
+            docRow.className = 'doc-row';
+
+            const nameWrapper = document.createElement('div');
+            nameWrapper.className = 'doc-field-wrapper';
+            nameWrapper.innerHTML = `<input type="text" class="input-target" placeholder="Document Name">`;
+            
+            const idWrapper = document.createElement('div');
+            idWrapper.className = 'doc-field-wrapper';
+            idWrapper.innerHTML = `<input type="text" class="input-target" placeholder="ID #">`;
+
+            const statusWrapper = document.createElement('div');
+            statusWrapper.className = 'doc-field-wrapper';
+            statusWrapper.innerHTML = `
+                <select class="input-target" onchange="const mod = this.closest('.doc-row').querySelector('.mod-field'); mod.style.display = this.value.includes('-mod') ? 'flex' : 'none';">
+                    <option value="" disabled selected>Select Status</option>
+                    <option value="draft">Draft</option>
+                    <option value="draft-mod">Draft (Modified)</option>
+                    <option value="executed">Executed</option>
+                    <option value="executed-mod">Executed (Modified)</option>
+                    <option value="recorded">Recorded</option>
+                    <option value="recorded-mod">Recorded (Modified)</option>
+                </select>
+            `;
+
+            const modWrapper = document.createElement('div');
+            modWrapper.className = 'doc-field-wrapper mod-field';
+            modWrapper.style.display = 'none';
+            modWrapper.style.flex = '0 0 70px';
+            modWrapper.innerHTML = `<input type="number" class="input-target" placeholder="Mod #" min="1">`;
+
+            const statusModRow = document.createElement('div');
+            statusModRow.className = 'doc-flex-row';
+            statusModRow.style.display = 'flex';
+            statusModRow.style.gap = '10px';
+            statusModRow.style.marginBottom = '5px';
+            statusModRow.appendChild(modWrapper);
+            statusModRow.appendChild(statusWrapper);
+
+            const nameIdRow = document.createElement('div');
+            nameIdRow.style.display = 'flex';
+            nameIdRow.style.gap = '10px';
+            nameIdRow.appendChild(nameWrapper);
+            nameIdRow.appendChild(idWrapper);
+
+            docRow.appendChild(statusModRow);
+            docRow.appendChild(nameIdRow);
+
+            const notesWrapper = document.createElement('div');
+            notesWrapper.className = 'notes-wrapper';
+            notesWrapper.style.display = 'none';
+            notesWrapper.innerHTML = `<label>Notes</label><textarea placeholder="Enter internal QC processing remarks..."></textarea>`;
+            docRow.appendChild(notesWrapper);
+
+            const actionsWrapper = document.createElement('div');
+            actionsWrapper.className = 'row-actions';
+
+            const notesToggle = document.createElement('label');
+            notesToggle.className = 'checkbox-container';
+            notesToggle.innerHTML = `<input type="checkbox" onchange="toggleNotesInput(this)"> Notes`;
+
+            const completeBtn = document.createElement('button');
+            completeBtn.className = 'btn btn-success btn-small';
+            completeBtn.type = 'button';
+            completeBtn.innerHTML = '✓';
+            completeBtn.onclick = function() {
+                const row = this.closest('.doc-row');
+                row.classList.toggle('is-complete');
+                this.classList.toggle('active');
+                triggerAutosaveEvent();
+            };
+
+            actionsWrapper.appendChild(notesToggle);
+            actionsWrapper.appendChild(completeBtn);
+
+            const hazardBtn = document.createElement('button');
+            hazardBtn.className = 'btn btn-warning btn-small';
+            hazardBtn.type = 'button';
+            hazardBtn.innerHTML = '⚠️';
+            hazardBtn.onclick = function() {
+                const row = this.closest('.doc-row');
+                row.classList.toggle('is-hazard');
+                this.classList.toggle('active');
+                triggerAutosaveEvent();
+            };
+            actionsWrapper.appendChild(hazardBtn);
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'btn btn-danger btn-small';
+            deleteBtn.type = 'button';
+            deleteBtn.textContent = 'Remove';
+            deleteBtn.onclick = function() { docRow.remove(); triggerAutosaveEvent(); };
+            
+            actionsWrapper.appendChild(deleteBtn);
+            docRow.appendChild(actionsWrapper);
+            container.appendChild(docRow);
+            triggerAutosaveEvent();
+        }
+
+        function addNoteRow(button) {
+            const container = button.parentNode.querySelector('.doc-rows-container');
+            const docRow = document.createElement('div');
+            docRow.className = 'doc-row';
+
+            const notesWrapper = document.createElement('div');
+            notesWrapper.className = 'notes-wrapper';
+            notesWrapper.style.display = 'flex';
+            notesWrapper.innerHTML = `<textarea placeholder="notes...."></textarea>`;
+            docRow.appendChild(notesWrapper);
+
+            const actionsWrapper = document.createElement('div');
+            actionsWrapper.className = 'row-actions';
+            actionsWrapper.style.justifyContent = 'flex-end';
+
+            const deleteBtn = document.createElement('button');
+            deleteBtn.className = 'btn btn-danger btn-small';
+            deleteBtn.type = 'button';
+            deleteBtn.textContent = 'Remove';
+            deleteBtn.onclick = function() { docRow.remove(); triggerAutosaveEvent(); };
+
+            actionsWrapper.appendChild(deleteBtn);
+            docRow.appendChild(actionsWrapper);
+            container.appendChild(docRow);
+            triggerAutosaveEvent();
+        }
+
+        function toggleNotesInput(element) {
+            const row = element.closest('.doc-row');
+            const notes = row.querySelector('.notes-wrapper');
+            notes.style.display = element.checked ? 'flex' : 'none';
+            triggerAutosaveEvent();
+        }
+
+        function toggleSectionCollapse(btn) {
+            const card = btn.closest('.section-card');
+            const h2 = card.querySelector('h2');
+            const type = card.dataset.sectionType;
+            const isCollapsed = card.classList.toggle('is-collapsed');
+            
+            btn.textContent = isCollapsed ? '+' : '-';
+
+            if (isCollapsed) {
+                if (!card.dataset.originalTitle) {
+                    card.dataset.originalTitle = h2.textContent;
+                }
+                const firstInput = card.querySelector('.input-row input');
+                let val = firstInput ? firstInput.value : "";
+                h2.textContent = `${type.toUpperCase()} - ${val || 'No ID Specified'}`;
+            } else if (card.dataset.originalTitle) {
+                h2.textContent = card.dataset.originalTitle;
+            }
+            triggerAutosaveEvent();
+        }
+
+        document.addEventListener('paste', function(e) {
+            const target = e.target;
+            const inputRow = target.closest('.input-row');
+            if (!inputRow) return;
+
+            const clipboardData = e.clipboardData || window.clipboardData;
+            const pastedText = clipboardData.getData('text');
+            const rows = pastedText.trim().split(/\r?\n/);
+            
+            if (rows.length > 1 || (rows.length === 1 && rows[0].includes('\t'))) {
+                e.preventDefault();
+                
+                const currentCard = target.closest('.section-card');
+                const sectionType = currentCard.dataset.sectionType;
+                const sectionGroup = currentCard.parentNode;
+                
+                let cards = Array.from(sectionGroup.querySelectorAll(`.section-card[data-section-type="${sectionType}"]`));
+                const startIndex = cards.indexOf(currentCard);
+
+                rows.forEach((rowText, i) => {
+                    const columns = rowText.split('\t');
+                    let card = cards[startIndex + i];
+
+                    if (!card) {
+                        if (sectionType === 'event') addEventSection();
+                        else if (sectionType === 'loan') addLoanSection();
+                        else if (sectionType === 'determinations') addDeterminationsSection();
+                        else if (sectionType === 'collateral') addCollateralSection();
+                        
+                        cards = Array.from(sectionGroup.querySelectorAll(`.section-card[data-section-type="${sectionType}"]`));
+                        card = cards[cards.length - 1];
+                    }
+
+                    const inputs = Array.from(card.querySelectorAll('.input-row input, .input-row select'));
+                    let colOffset = (i === 0) ? inputs.indexOf(target) : 0;
+                    if (colOffset === -1) colOffset = 0;
+
+                    columns.forEach((val, j) => {
+                        const input = inputs[colOffset + j];
+                        if (input) {
+                            const trimmed = val.trim();
+                            if (input.tagName === 'SELECT') {
+                                for (let opt of input.options) {
+                                    if (opt.text.toLowerCase() === trimmed.toLowerCase() || opt.value.toLowerCase() === trimmed.toLowerCase()) {
+                                        input.value = opt.value;
+                                        break;
+                                    }
+                                }
+                            } else {
+                                input.value = trimmed;
+                            }
+                        }
+                    });
+                });
+                triggerAutosaveEvent();
+            }
+        });
+
+        function clearInputs(element) {
+            element.querySelectorAll('input').forEach(input => input.value = '');
+            element.querySelectorAll('select').forEach(select => select.selectedIndex = 0);
+        }
+    </script>
+</body>
+</html>
