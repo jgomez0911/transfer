@@ -5,25 +5,47 @@
         return;
     }
 
-    // --- 1. CONFIGURATION & SELECTORS ---
-    // Update the URL patterns and CSS selectors to match your portal's DOM
+    // =========================================================================
+    // 1. CONFIGURATION: URLS & TARGET COLUMN TITLES
+    // =========================================================================
     const urls = {
         base: `https://your-domain.internal/events/S${eventId}`,
         sfhd_list: `https://your-domain.internal/sfhd/list?eventId=${eventId}`,
         sfhd_record: (id) => `https://your-domain.internal/sfhd/record/${id}`,
         col_list: `https://your-domain.internal/collateral/list?eventId=${eventId}`,
-        col_record: (id) => `https://your-domain.internal/collateral/record/${id}`,
-        docs_list: `https://your-domain.internal/documents/list?eventId=${eventId}` // Optional standalone doc page
+        col_record: (id) => `https://your-domain.internal/collateral/record/${id}`
     };
 
-    const SELECTORS = {
-        baseTableContainer: '#event-overview-div table',
-        baseTableCells: '#event-overview-div table tbody tr td',
-        sfhdListRows: '#sfhd-table tbody tr',
-        colListRows: '#collateral-table tbody tr',
-        docRows: '.document-section-div table tbody tr',
-        standaloneDocRows: '#documents-table tbody tr'
+    // Exact or partial titles found inside spans, buttons, or th elements
+    const COLUMN_TITLES = {
+        overview: [
+            "Mod Type", "Acct System", "Borrower Name", "Borrower ID",
+            "Loan ID", "Product ID", "Synd/Part Type", "Product",
+            "Commit Amt", "Prop Commit", "Cur Balance", "Loan Status", "Status Detail"
+        ],
+        determinations: [
+            "Det ID", "Flood Cert ID", "Cert Borrower Name", "Borrower ID",
+            "Cert Loan ID", "Address", "City", "State", "Zip", "Flood Zone"
+        ],
+        collateral: [
+            "Collat ID", "Name", "Type", "Sub-type", "Address", "City",
+            "State", "Zip", "County Subdiv", "Sec", "Lot", "Block"
+        ],
+        documents: {
+            id: "Doc ID",
+            name: "Doc Name",
+            notes: "Notes"
+        }
     };
+
+    // =========================================================================
+    // 2. SEARCH & EXTRACTION HELPERS (HEADER-MATCHING ENGINE)
+    // =========================================================================
+
+    // Normalizes text by removing extra spaces, newlines, and lowercase conversion
+    function cleanText(text) {
+        return (text || '').replace(/\s+/g, ' ').trim().toLowerCase();
+    }
 
     function escapeHtml(str) {
         if (!str) return '';
@@ -32,6 +54,62 @@
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;");
+    }
+
+    // Scans the table headers (spans, buttons, or ths) and maps title -> column index
+    function getTableColumnMap(table) {
+        const colMap = {};
+        if (!table) return colMap;
+
+        // Collect all potential header cells from thead or the first row
+        const headerCells = Array.from(table.querySelectorAll('thead th, thead td, tr:first-child th, tr:first-child td'));
+
+        headerCells.forEach((cell, idx) => {
+            // innerText ignores whether text is in a <span>, <button>, or <div>
+            const headerText = cleanText(cell.innerText);
+            if (headerText) {
+                colMap[headerText] = idx;
+            }
+        });
+
+        return colMap;
+    }
+
+    // Finds column index by matching your configured title against the mapped headers
+    function findColumnIndex(colMap, searchTitle) {
+        const target = cleanText(searchTitle);
+        // Direct match
+        if (colMap[target] !== undefined) return colMap[target];
+
+        // Fuzzy/partial match (e.g. "loan id" inside "loan id #")
+        for (const [headerText, index] of Object.entries(colMap)) {
+            if (headerText.includes(target) || target.includes(headerText)) {
+                return index;
+            }
+        }
+        return -1;
+    }
+
+    // Extracts text and any link (anchor tag) within a specific cell
+    function extractCellData(cell) {
+        if (!cell) return { text: '-', url: null };
+
+        const anchor = cell.querySelector('a');
+        const text = cell.innerText.trim() || '-';
+        const url = anchor ? anchor.href : null;
+
+        return { text, url };
+    }
+
+    // Helper: Extracts a full row by matching an array of expected titles
+    function extractRowByTitles(rowElement, colMap, titleList) {
+        return titleList.map(title => {
+            const colIndex = findColumnIndex(colMap, title);
+            if (colIndex !== -1 && rowElement.children[colIndex]) {
+                return extractCellData(rowElement.children[colIndex]);
+            }
+            return { text: '-', url: null };
+        });
     }
 
     // Helper to format documents into horizontal rows (max 3 per row)
@@ -45,9 +123,13 @@
             gridRows += '<tr>';
             chunk.forEach((d, idx) => {
                 const padding = idx === 0 ? 'padding: 2px 10px 2px 0;' : (idx === 1 ? 'padding: 2px 10px 2px 5px;' : 'padding: 2px 0 2px 10px;');
+                const docLabel = d.url 
+                    ? `<a href="${escapeHtml(d.url)}" style="color: #A6192E; text-decoration: underline;">${escapeHtml(d.docName)}: ${escapeHtml(d.docId)}</a>`
+                    : `${escapeHtml(d.docName)}: ${escapeHtml(d.docId)}`;
+
                 gridRows += `
                     <td style="width: 33.33%; vertical-align: top; ${padding} border: none;">
-                        <p style="margin: 0; font-weight: bold; color: #222222; font-size: 8pt;">${escapeHtml(d.docName)}: ${escapeHtml(d.docId)}</p>
+                        <p style="margin: 0; font-weight: bold; color: #222222; font-size: 8pt;">${docLabel}</p>
                         <p style="margin: 2px 0 0 0; color: #444444; font-size: 8pt;">${escapeHtml(d.note || '-')}</p>
                     </td>
                 `;
@@ -65,7 +147,7 @@
         `;
     }
 
-    // --- 2. DOM FETCH HELPER ---
+    // --- 3. DOM FETCH & DOCUMENT EXTRACTOR ---
     async function fetchDoc(url) {
         console.log(`Fetching: ${url}`);
         const res = await fetch(url, { credentials: 'include' });
@@ -74,131 +156,140 @@
         return new DOMParser().parseFromString(html, 'text/html');
     }
 
-    // --- 3. DOCUMENT DETAIL EXTRACTOR ---
     async function extractRecordDocs(recordUrl) {
         try {
             const doc = await fetchDoc(recordUrl);
-            const rows = Array.from(doc.querySelectorAll(SELECTORS.docRows));
+            const docTable = doc.querySelector('.document-section-div table, table');
+            if (!docTable) return [];
+
+            const colMap = getTableColumnMap(docTable);
+            const idIdx = findColumnIndex(colMap, COLUMN_TITLES.documents.id);
+            const nameIdx = findColumnIndex(colMap, COLUMN_TITLES.documents.name);
+            const notesIdx = findColumnIndex(colMap, COLUMN_TITLES.documents.notes);
+
+            const rows = Array.from(docTable.querySelectorAll('tbody tr, tr:not(:first-child)'));
             const records = [];
 
             rows.forEach(tr => {
-                const docId = tr.querySelector('.doc-id')?.innerText?.trim() || tr.children[0]?.innerText?.trim() || 'N/A';
-                const docName = tr.querySelector('.doc-name')?.innerText?.trim() || tr.children[1]?.innerText?.trim() || 'N/A';
-                const noteTr = tr.nextElementSibling?.classList.contains('notes-row')
-                    ? tr.nextElementSibling.innerText.trim()
-                    : tr.querySelector('.doc-notes')?.innerText?.trim() || tr.children[2]?.innerText?.trim() || '';
+                // Ignore sub-rows or empty rows
+                if (tr.children.length < 2) return;
 
-                if (docId !== 'N/A' || docName !== 'N/A') {
-                    records.push({ docId, docName, note: noteTr });
+                const idCell = extractCellData(tr.children[idIdx !== -1 ? idIdx : 0]);
+                const nameCell = extractCellData(tr.children[nameIdx !== -1 ? nameIdx : 1]);
+                
+                // Notes could be in an indexed cell, a sibling .notes-row, or adjacent column
+                let noteText = '';
+                if (notesIdx !== -1 && tr.children[notesIdx]) {
+                    noteText = tr.children[notesIdx].innerText.trim();
+                } else if (tr.nextElementSibling && tr.nextElementSibling.classList.contains('notes-row')) {
+                    noteText = tr.nextElementSibling.innerText.trim();
+                } else {
+                    const fallbackNotes = tr.querySelector('.doc-notes, .notes');
+                    noteText = fallbackNotes ? fallbackNotes.innerText.trim() : '';
+                }
+
+                if (idCell.text !== '-' || nameCell.text !== '-') {
+                    records.push({
+                        docId: idCell.text,
+                        docName: nameCell.text,
+                        url: idCell.url || nameCell.url,
+                        note: noteText
+                    });
                 }
             });
             return records;
         } catch (err) {
-            console.error(`Error loading record: ${recordUrl}`, err);
+            console.error(`Error reading record: ${recordUrl}`, err);
             return [];
         }
     }
 
+    // =========================================================================
+    // 4. MAIN EXTRACTION PIPELINE
+    // =========================================================================
     try {
-        console.log(`Starting extraction for Event: ${eventId}...`);
+        console.log(`Extracting data for Event: ${eventId}...`);
 
-        // --- STEP 1: Fetch Base Table Data (13 Columns) ---
-        let baseCells = [];
+        // --- STEP 1: EVENT OVERVIEW (Base Table Search) ---
+        let overviewCells = [];
         try {
             const baseDoc = await fetchDoc(urls.base);
-            const extractedCells = Array.from(baseDoc.querySelectorAll(SELECTORS.baseTableCells)).map(td => td.innerText.trim());
-            if (extractedCells.length >= 13) {
-                baseCells = extractedCells.slice(0, 13);
+            const baseTable = baseDoc.querySelector('#event-overview-div table, table');
+            if (baseTable) {
+                const colMap = getTableColumnMap(baseTable);
+                const firstRow = baseTable.querySelector('tbody tr, tr:nth-child(2)');
+                if (firstRow) {
+                    overviewCells = extractRowByTitles(firstRow, colMap, COLUMN_TITLES.overview);
+                }
             }
         } catch (e) {
-            console.warn("Could not load base overview; using blank fallbacks.", e);
+            console.warn("Base overview lookup failed; fallback to blank fields.", e);
         }
 
-        // Default to empty strings if cells were not fully scraped
-        while (baseCells.length < 13) baseCells.push("-");
+        while (overviewCells.length < COLUMN_TITLES.overview.length) {
+            overviewCells.push({ text: '-', url: null });
+        }
 
-        // --- STEP 2: SFHD List & Records (10 Columns) ---
+        // --- STEP 2: DETERMINATIONS (SFHD List & Records) ---
         const sfhdDoc = await fetchDoc(urls.sfhd_list);
-        const sfhdRows = Array.from(sfhdDoc.querySelectorAll(SELECTORS.sfhdListRows));
+        const sfhdTable = sfhdDoc.querySelector('#sfhd-table, table');
+        const sfhdColMap = getTableColumnMap(sfhdTable);
+        const sfhdRows = Array.from(sfhdTable ? sfhdTable.querySelectorAll('tbody tr, tr:not(:first-child)') : []);
         const sfhdData = [];
 
         for (const row of sfhdRows) {
-            const cells = Array.from(row.querySelectorAll('td')).map(td => td.innerText.trim());
-            const sfhdId = row.querySelector('.sfhd-id')?.innerText?.trim() || cells[0];
-            if (!sfhdId) continue;
+            const extractedRow = extractRowByTitles(row, sfhdColMap, COLUMN_TITLES.determinations);
+            const detIdObj = extractedRow[0]; // "Det ID"
+            if (!detIdObj || detIdObj.text === '-') continue;
 
-            const docs = await extractRecordDocs(urls.sfhd_record(sfhdId));
+            const recordUrl = detIdObj.url || urls.sfhd_record(detIdObj.text);
+            const docs = await extractRecordDocs(recordUrl);
+
             sfhdData.push({
-                detId: sfhdId,
-                floodCertId: row.querySelector('.flood-cert-id')?.innerText?.trim() || cells[1] || '-',
-                certBorrowerName: row.querySelector('.borrower-name')?.innerText?.trim() || cells[2] || '-',
-                borrowerId: row.querySelector('.borrower-id')?.innerText?.trim() || cells[3] || '-',
-                certLoanId: row.querySelector('.cert-loan-id')?.innerText?.trim() || cells[4] || '-',
-                address: row.querySelector('.address')?.innerText?.trim() || cells[5] || '-',
-                city: row.querySelector('.city')?.innerText?.trim() || cells[6] || '-',
-                state: row.querySelector('.state')?.innerText?.trim() || cells[7] || '-',
-                zip: row.querySelector('.zip')?.innerText?.trim() || cells[8] || '-',
-                floodZone: row.querySelector('.flood-zone')?.innerText?.trim() || cells[9] || '-',
+                cells: extractedRow,
                 addressSource: row.querySelector('.address-source')?.innerText?.trim() || '',
-                docs: docs
-            });
-            await new Promise(r => setTimeout(r, 200)); // Guard against session rate limiting
-        }
-
-        // --- STEP 3: Collateral List & Records (12 Columns) ---
-        const colDoc = await fetchDoc(urls.col_list);
-        const colRows = Array.from(colDoc.querySelectorAll(SELECTORS.colListRows));
-        const colData = [];
-
-        for (const row of colRows) {
-            const cells = Array.from(row.querySelectorAll('td')).map(td => td.innerText.trim());
-            const colId = row.querySelector('.col-id')?.innerText?.trim() || cells[0];
-            if (!colId) continue;
-
-            const docs = await extractRecordDocs(urls.col_record(colId));
-            colData.push({
-                colId: colId,
-                name: row.querySelector('.col-name')?.innerText?.trim() || cells[1] || '-',
-                type: row.querySelector('.col-type')?.innerText?.trim() || cells[2] || '-',
-                subtype: row.querySelector('.col-subtype')?.innerText?.trim() || cells[3] || '-',
-                address: row.querySelector('.col-address')?.innerText?.trim() || cells[4] || '-',
-                city: row.querySelector('.col-city')?.innerText?.trim() || cells[5] || '-',
-                state: row.querySelector('.col-state')?.innerText?.trim() || cells[6] || '-',
-                zip: row.querySelector('.col-zip')?.innerText?.trim() || cells[7] || '-',
-                countySubdiv: row.querySelector('.col-county')?.innerText?.trim() || cells[8] || '-',
-                sec: row.querySelector('.col-sec')?.innerText?.trim() || cells[9] || '-',
-                lot: row.querySelector('.col-lot')?.innerText?.trim() || cells[10] || '-',
-                block: row.querySelector('.col-block')?.innerText?.trim() || cells[11] || '-',
                 docs: docs
             });
             await new Promise(r => setTimeout(r, 200));
         }
 
-        // --- STEP 4: Standalone Documents (Optional URL or Pooled Records) ---
-        let generalDocs = [];
-        try {
-            const standaloneDocPage = await fetchDoc(urls.docs_list);
-            const docRows = Array.from(standaloneDocPage.querySelectorAll(SELECTORS.standaloneDocRows));
-            docRows.forEach(tr => {
-                const docName = tr.children[0]?.innerText?.trim();
-                const docId = tr.children[1]?.innerText?.trim();
-                const note = tr.children[2]?.innerText?.trim() || '';
-                if (docName && docId) generalDocs.push({ docName, docId, note });
+        // --- STEP 3: COLLATERAL LIST & RECORDS ---
+        const colDoc = await fetchDoc(urls.col_list);
+        const colTable = colDoc.querySelector('#collateral-table, table');
+        const colMap = getTableColumnMap(colTable);
+        const colRows = Array.from(colTable ? colTable.querySelectorAll('tbody tr, tr:not(:first-child)') : []);
+        const colData = [];
+
+        for (const row of colRows) {
+            const extractedRow = extractRowByTitles(row, colMap, COLUMN_TITLES.collateral);
+            const colIdObj = extractedRow[0]; // "Collat ID"
+            if (!colIdObj || colIdObj.text === '-') continue;
+
+            const recordUrl = colIdObj.url || urls.col_record(colIdObj.text);
+            const docs = await extractRecordDocs(recordUrl);
+
+            colData.push({
+                cells: extractedRow,
+                docs: docs
             });
-        } catch (e) {
-            // Pool unique documents from Determinations & Collateral if standalone list is unavailable
-            const seen = new Set();
-            [...sfhdData, ...colData].forEach(rec => {
-                rec.docs.forEach(d => {
-                    if (!seen.has(d.docId)) {
-                        seen.add(d.docId);
-                        generalDocs.push(d);
-                    }
-                });
-            });
+            await new Promise(r => setTimeout(r, 200));
         }
 
-        // --- STEP 5: GENERATE WELLS FARGO PROFESSIONAL REPORT HTML ---
+        // --- STEP 4: GENERAL DOCUMENTS POOL ---
+        const seenDocs = new Set();
+        const pooledDocs = [];
+        [...sfhdData, ...colData].forEach(item => {
+            item.docs.forEach(d => {
+                if (!seenDocs.has(d.docId)) {
+                    seenDocs.add(d.docId);
+                    pooledDocs.push(d);
+                }
+            });
+        });
+
+        // =========================================================================
+        // 5. BUILD EXCEL-STYLE REPORT HTML (WELLS FARGO THEME)
+        // =========================================================================
         const compiledHtml = `
         <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
         <head>
@@ -230,7 +321,7 @@
                 </table>
             </div>
 
-            <!-- 1. Event Overview (2 Rows x 13 Columns) -->
+            <!-- 1. Event Overview -->
             <div style="margin-bottom: 22px;">
                 <div style="border-bottom: 2px solid #F4A900; padding-bottom: 3px; margin-bottom: 6px;">
                     <h2 style="mso-outline-level: 2; mso-style-name: 'Heading 2'; font-size: 11pt; font-weight: bold; color: #A6192E; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">
@@ -240,30 +331,22 @@
                 <table border="1" cellpadding="4" cellspacing="0" style="border-collapse: collapse; width: 100%; border: 1px solid #CCCCCC; font-size: 7.2pt; table-layout: fixed; word-break: break-word;">
                     <thead>
                         <tr style="background-color: #A6192E; color: #FFFFFF; text-align: center;">
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">Mod Type</th>
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">Acct System</th>
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">Borrower Name</th>
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">Borrower ID</th>
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">Loan ID</th>
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">Product ID</th>
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">Synd/Part Type</th>
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">Product</th>
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">Commit Amt</th>
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">Prop Commit</th>
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">Cur Balance</th>
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">Loan Status</th>
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">Status Detail</th>
+                            ${COLUMN_TITLES.overview.map(title => `<th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">${escapeHtml(title)}</th>`).join('')}
                         </tr>
                     </thead>
                     <tbody>
                         <tr style="text-align: center; background-color: #FFFFFF;">
-                            ${baseCells.map(c => `<td style="border: 1px solid #CCCCCC; padding: 4px 2px;">${escapeHtml(c)}</td>`).join('')}
+                            ${overviewCells.map(c => `
+                                <td style="border: 1px solid #CCCCCC; padding: 4px 2px;">
+                                    ${c.url ? `<a href="${escapeHtml(c.url)}" style="color: #A6192E; font-weight: bold;">${escapeHtml(c.text)}</a>` : escapeHtml(c.text)}
+                                </td>
+                            `).join('')}
                         </tr>
                     </tbody>
                 </table>
             </div>
 
-            <!-- 2. Determinations (Single Header, Repeated Rows + Horizontal Docs) -->
+            <!-- 2. Determinations -->
             <div style="margin-bottom: 22px;">
                 <div style="border-bottom: 2px solid #F4A900; padding-bottom: 3px; margin-bottom: 6px;">
                     <h2 style="mso-outline-level: 2; mso-style-name: 'Heading 2'; font-size: 11pt; font-weight: bold; color: #A6192E; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">
@@ -273,34 +356,20 @@
                 <table border="1" cellpadding="4" cellspacing="0" style="border-collapse: collapse; width: 100%; border: 1px solid #CCCCCC; font-size: 7.5pt; table-layout: fixed; word-break: break-word;">
                     <thead>
                         <tr style="background-color: #A6192E; color: #FFFFFF; text-align: center;">
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">Det ID</th>
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">Flood Cert ID</th>
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">Cert Borrower Name</th>
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">Borrower ID</th>
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">Cert Loan ID</th>
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">Address</th>
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">City</th>
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">State</th>
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">Zip</th>
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">Flood Zone</th>
+                            ${COLUMN_TITLES.determinations.map(title => `<th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">${escapeHtml(title)}</th>`).join('')}
                         </tr>
                     </thead>
                     <tbody>
                         ${sfhdData.map(item => `
                             <tr style="text-align: center; background-color: #FFFFFF;">
-                                <td style="border: 1px solid #CCCCCC; padding: 4px 2px; font-weight: bold;">${escapeHtml(item.detId)}</td>
-                                <td style="border: 1px solid #CCCCCC; padding: 4px 2px;">${escapeHtml(item.floodCertId)}</td>
-                                <td style="border: 1px solid #CCCCCC; padding: 4px 2px;">${escapeHtml(item.certBorrowerName)}</td>
-                                <td style="border: 1px solid #CCCCCC; padding: 4px 2px;">${escapeHtml(item.borrowerId)}</td>
-                                <td style="border: 1px solid #CCCCCC; padding: 4px 2px;">${escapeHtml(item.certLoanId)}</td>
-                                <td style="border: 1px solid #CCCCCC; padding: 4px 2px;">${escapeHtml(item.address)}</td>
-                                <td style="border: 1px solid #CCCCCC; padding: 4px 2px;">${escapeHtml(item.city)}</td>
-                                <td style="border: 1px solid #CCCCCC; padding: 4px 2px;">${escapeHtml(item.state)}</td>
-                                <td style="border: 1px solid #CCCCCC; padding: 4px 2px;">${escapeHtml(item.zip)}</td>
-                                <td style="border: 1px solid #CCCCCC; padding: 4px 2px; font-weight: bold;">${escapeHtml(item.floodZone)}</td>
+                                ${item.cells.map(c => `
+                                    <td style="border: 1px solid #CCCCCC; padding: 4px 2px;">
+                                        ${c.url ? `<a href="${escapeHtml(c.url)}" style="color: #A6192E; font-weight: bold;">${escapeHtml(c.text)}</a>` : escapeHtml(c.text)}
+                                    </td>
+                                `).join('')}
                             </tr>
                             <tr style="background-color: #FDFBF7;">
-                                <td colspan="10" style="border: 1px solid #CCCCCC; padding: 6px 10px; border-left: 3px solid #F4A900;">
+                                <td colspan="${COLUMN_TITLES.determinations.length}" style="border: 1px solid #CCCCCC; padding: 6px 10px; border-left: 3px solid #F4A900;">
                                     <div style="font-size: 8pt; margin-bottom: 6px;">
                                         <div style="font-weight: bold; color: #A6192E;">Address verification source:</div>
                                         <div style="color: #333333; margin-top: 1px;">${escapeHtml(item.addressSource) || '&nbsp;'}</div>
@@ -313,7 +382,7 @@
                 </table>
             </div>
 
-            <!-- 3. Collateral (Single Header, Repeated Rows + Horizontal Docs) -->
+            <!-- 3. Collateral -->
             <div style="margin-bottom: 22px;">
                 <div style="border-bottom: 2px solid #F4A900; padding-bottom: 3px; margin-bottom: 6px;">
                     <h2 style="mso-outline-level: 2; mso-style-name: 'Heading 2'; font-size: 11pt; font-weight: bold; color: #A6192E; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">
@@ -323,38 +392,20 @@
                 <table border="1" cellpadding="4" cellspacing="0" style="border-collapse: collapse; width: 100%; border: 1px solid #CCCCCC; font-size: 7.2pt; table-layout: fixed; word-break: break-word;">
                     <thead>
                         <tr style="background-color: #A6192E; color: #FFFFFF; text-align: center;">
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">Collat ID</th>
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">Name</th>
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">Type</th>
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">Sub-type</th>
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">Address</th>
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">City</th>
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">State</th>
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">Zip</th>
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">County Subdiv</th>
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">Sec</th>
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">Lot</th>
-                            <th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">Block</th>
+                            ${COLUMN_TITLES.collateral.map(title => `<th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">${escapeHtml(title)}</th>`).join('')}
                         </tr>
                     </thead>
                     <tbody>
                         ${colData.map(item => `
                             <tr style="text-align: center; background-color: #FFFFFF;">
-                                <td style="border: 1px solid #CCCCCC; padding: 4px 2px; font-weight: bold;">${escapeHtml(item.colId)}</td>
-                                <td style="border: 1px solid #CCCCCC; padding: 4px 2px;">${escapeHtml(item.name)}</td>
-                                <td style="border: 1px solid #CCCCCC; padding: 4px 2px;">${escapeHtml(item.type)}</td>
-                                <td style="border: 1px solid #CCCCCC; padding: 4px 2px;">${escapeHtml(item.subtype)}</td>
-                                <td style="border: 1px solid #CCCCCC; padding: 4px 2px;">${escapeHtml(item.address)}</td>
-                                <td style="border: 1px solid #CCCCCC; padding: 4px 2px;">${escapeHtml(item.city)}</td>
-                                <td style="border: 1px solid #CCCCCC; padding: 4px 2px;">${escapeHtml(item.state)}</td>
-                                <td style="border: 1px solid #CCCCCC; padding: 4px 2px;">${escapeHtml(item.zip)}</td>
-                                <td style="border: 1px solid #CCCCCC; padding: 4px 2px;">${escapeHtml(item.countySubdiv)}</td>
-                                <td style="border: 1px solid #CCCCCC; padding: 4px 2px;">${escapeHtml(item.sec)}</td>
-                                <td style="border: 1px solid #CCCCCC; padding: 4px 2px;">${escapeHtml(item.lot)}</td>
-                                <td style="border: 1px solid #CCCCCC; padding: 4px 2px;">${escapeHtml(item.block)}</td>
+                                ${item.cells.map(c => `
+                                    <td style="border: 1px solid #CCCCCC; padding: 4px 2px;">
+                                        ${c.url ? `<a href="${escapeHtml(c.url)}" style="color: #A6192E; font-weight: bold;">${escapeHtml(c.text)}</a>` : escapeHtml(c.text)}
+                                    </td>
+                                `).join('')}
                             </tr>
                             <tr style="background-color: #FDFBF7;">
-                                <td colspan="12" style="border: 1px solid #CCCCCC; padding: 6px 10px; border-left: 3px solid #F4A900;">
+                                <td colspan="${COLUMN_TITLES.collateral.length}" style="border: 1px solid #CCCCCC; padding: 6px 10px; border-left: 3px solid #F4A900;">
                                     ${renderDocumentGrid(item.docs)}
                                 </td>
                             </tr>
@@ -363,7 +414,7 @@
                 </table>
             </div>
 
-            <!-- 4. Documents (Paragraph Elements) -->
+            <!-- 4. Documents -->
             <div style="margin-bottom: 15px;">
                 <div style="border-bottom: 2px solid #F4A900; padding-bottom: 3px; margin-bottom: 8px;">
                     <h2 style="mso-outline-level: 2; mso-style-name: 'Heading 2'; font-size: 11pt; font-weight: bold; color: #A6192E; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">
@@ -371,9 +422,11 @@
                     </h2>
                 </div>
                 <div style="font-size: 8.5pt; line-height: 1.4; padding-left: 2px;">
-                    ${generalDocs.length > 0 ? generalDocs.map(d => `
+                    ${pooledDocs.length > 0 ? pooledDocs.map(d => `
                         <div style="margin-bottom: 8px;">
-                            <p style="margin: 0; font-weight: bold; color: #222222;">${escapeHtml(d.docName)}:${escapeHtml(d.docId)}</p>
+                            <p style="margin: 0; font-weight: bold; color: #222222;">
+                                ${d.url ? `<a href="${escapeHtml(d.url)}" style="color: #A6192E; text-decoration: underline;">${escapeHtml(d.docName)}: ${escapeHtml(d.docId)}</a>` : `${escapeHtml(d.docName)}: ${escapeHtml(d.docId)}`}
+                            </p>
                             <p style="margin: 1px 0 0 0; color: #444444;">${escapeHtml(d.note || '-')}</p>
                         </div>
                     `).join('') : '<p style="margin: 0; color: #777777; font-style: italic;">No independent documents found.</p>'}
@@ -387,8 +440,9 @@
         </body>
         </html>`;
 
-        // --- STEP 6: DOM-SELECTION COPY & FILE DOWNLOAD ---
-        // 1. Native DOM selection copy (Preserves Office CF_HTML table descriptors)[cite: 2]
+        // =========================================================================
+        // 6. CLIPBOARD SELECTION COPY & DOC DOWNLOAD
+        // =========================================================================
         const tempDiv = document.createElement('div');
         tempDiv.style.position = 'fixed';
         tempDiv.style.left = '-9999px';
@@ -406,12 +460,11 @@
         try {
             copied = document.execCommand('copy');
         } catch (e) {
-            console.warn("execCommand copy failed, falling back to Clipboard API...", e);
+            console.warn("execCommand failed, falling back to Clipboard API...", e);
         }
         sel.removeAllRanges();
         document.body.removeChild(tempDiv);
 
-        // Fallback to Clipboard API if execCommand wasn't allowed
         if (!copied && navigator.clipboard) {
             const blobHtml = new Blob([compiledHtml], { type: 'text/html' });
             const blobPlain = new Blob([compiledHtml], { type: 'text/plain' });
@@ -422,10 +475,9 @@
         }
 
         if (copied) {
-            console.log("Rich formatting copied to clipboard! You can paste directly into Word or OneNote.");
+            console.log("Rich report copied to clipboard! Paste directly into Word or OneNote.");
         }
 
-        // 2. Trigger .doc file download for direct opening in Microsoft Word
         const docBlob = new Blob(['\ufeff', compiledHtml], { type: 'application/msword' });
         const downloadLink = document.createElement('a');
         downloadLink.href = URL.createObjectURL(docBlob);
@@ -434,7 +486,7 @@
         downloadLink.click();
         downloadLink.remove();
 
-        console.log(`QC Report generation completed for Event ${eventId}.`);
+        console.log(`QC Extraction completed successfully for Event ${eventId}.`);
 
     } catch (error) {
         console.error("Scraping workflow failed:", error);
