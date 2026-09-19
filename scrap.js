@@ -6,31 +6,44 @@
     }
 
     // =========================================================================
-    // 1. CONFIGURATION: URLS & TARGET COLUMN TITLES
+    // 1. CONFIGURATION: URLS, TABLE COLUMNS & FORM LABELS
     // =========================================================================
     const urls = {
         base: `https://your-domain.internal/events/S${eventId}`,
         sfhd_list: `https://your-domain.internal/sfhd/list?eventId=${eventId}`,
         sfhd_record: (id) => `https://your-domain.internal/sfhd/record/${id}`,
         col_list: `https://your-domain.internal/collateral/list?eventId=${eventId}`,
-        col_record: (id) => `https://your-domain.internal/collateral/record/${id}`
+        col_record: (id) => `https://your-domain.internal/collateral/record/${id}`,
+        docs_list: `https://your-domain.internal/documents/list?eventId=${eventId}`
     };
 
-    // Exact or partial titles found inside spans, buttons, or th elements
-    const COLUMN_TITLES = {
-        overview: [
+    const CONFIG = {
+        // Form inputs/labels that sit OUTSIDE tables (inputs, textareas, selects, spans)
+        overviewLabels: [
+            "Application ID", 
+            "Approval Needed By", 
+            "Closing Date", 
+            "LOB", 
+            "Job ID #"
+        ],
+
+        // Overview data that lives inside a table (13 Columns)
+        overviewTableColumns: [
             "Mod Type", "Acct System", "Borrower Name", "Borrower ID",
             "Loan ID", "Product ID", "Synd/Part Type", "Product",
             "Commit Amt", "Prop Commit", "Cur Balance", "Loan Status", "Status Detail"
         ],
+
         determinations: [
             "Det ID", "Flood Cert ID", "Cert Borrower Name", "Borrower ID",
             "Cert Loan ID", "Address", "City", "State", "Zip", "Flood Zone"
         ],
+
         collateral: [
             "Collat ID", "Name", "Type", "Sub-type", "Address", "City",
             "State", "Zip", "County Subdiv", "Sec", "Lot", "Block"
         ],
+
         documents: {
             id: "Doc ID",
             name: "Doc Name",
@@ -39,10 +52,8 @@
     };
 
     // =========================================================================
-    // 2. SEARCH & EXTRACTION HELPERS (HEADER-MATCHING ENGINE)
+    // 2. TEXT NORMALIZATION & SANITIZATION HELPERS
     // =========================================================================
-
-    // Normalizes text by removing extra spaces, newlines, and lowercase conversion
     function cleanText(text) {
         return (text || '').replace(/\s+/g, ' ').trim().toLowerCase();
     }
@@ -56,32 +67,99 @@
             .replace(/"/g, "&quot;");
     }
 
-    // Scans the table headers (spans, buttons, or ths) and maps title -> column index
+    // =========================================================================
+    // 3. FORM FIELD EXTRACTOR (FOR NON-TABLE INPUTS, DROPDOWNS & LABELS)
+    // =========================================================================
+    function getElementValue(el) {
+        if (!el) return '-';
+        if (el.tagName === 'SELECT') {
+            const opt = el.options[el.selectedIndex];
+            return opt ? (opt.text.trim() || opt.value.trim() || '-') : '-';
+        }
+        if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+            return el.value ? el.value.trim() : (el.innerText ? el.innerText.trim() : '-');
+        }
+        return el.innerText ? el.innerText.trim() : '-';
+    }
+
+    function extractFormField(doc, labelText) {
+        if (!doc || !labelText) return '-';
+        const target = cleanText(labelText);
+
+        // A. Match by <label>, .form-label, <th>, or <span> title
+        const potentialLabels = Array.from(doc.querySelectorAll('label, .form-label, .field-label, span.title, th, dt, b, strong'));
+        for (const lbl of potentialLabels) {
+            const lblText = cleanText(lbl.innerText);
+            if (lblText.includes(target) || target.includes(lblText)) {
+                // Check 'for' attribute linking to an ID
+                const forId = lbl.getAttribute('for');
+                if (forId) {
+                    const el = doc.getElementById(forId);
+                    if (el) return getElementValue(el);
+                }
+
+                // Check closest container for input/select
+                const container = lbl.closest('.form-group, .field-wrapper, .input-row, tr, div') || lbl.parentElement;
+                if (container) {
+                    const input = container.querySelector('input:not([type="hidden"]), select, textarea');
+                    if (input && input !== lbl) {
+                        return getElementValue(input);
+                    }
+                }
+
+                // Check next sibling element
+                let sibling = lbl.nextElementSibling;
+                while (sibling) {
+                    if (['INPUT', 'SELECT', 'TEXTAREA'].includes(sibling.tagName)) {
+                        return getElementValue(sibling);
+                    }
+                    const nestedInput = sibling.querySelector('input:not([type="hidden"]), select, textarea');
+                    if (nestedInput) return getElementValue(nestedInput);
+                    if (sibling.innerText && sibling.innerText.trim()) {
+                        return sibling.innerText.trim();
+                    }
+                    sibling = sibling.nextElementSibling;
+                }
+            }
+        }
+
+        // B. Fallback: Search input placeholder, name, aria-label, or id attributes directly
+        const inputs = Array.from(doc.querySelectorAll('input:not([type="hidden"]), select, textarea'));
+        for (const inp of inputs) {
+            const ph = cleanText(inp.placeholder);
+            const aria = cleanText(inp.getAttribute('aria-label'));
+            const name = cleanText(inp.name);
+            const id = cleanText(inp.id);
+
+            if ((ph && ph.includes(target)) || (aria && aria.includes(target)) || (name && name.includes(target)) || (id && id.includes(target))) {
+                return getElementValue(inp);
+            }
+        }
+
+        return '-';
+    }
+
+    // =========================================================================
+    // 4. TABLE COLUMN MATCHING & EXTRACTION HELPERS
+    // =========================================================================
     function getTableColumnMap(table) {
         const colMap = {};
         if (!table) return colMap;
 
-        // Collect all potential header cells from thead or the first row
         const headerCells = Array.from(table.querySelectorAll('thead th, thead td, tr:first-child th, tr:first-child td'));
-
         headerCells.forEach((cell, idx) => {
-            // innerText ignores whether text is in a <span>, <button>, or <div>
             const headerText = cleanText(cell.innerText);
             if (headerText) {
                 colMap[headerText] = idx;
             }
         });
-
         return colMap;
     }
 
-    // Finds column index by matching your configured title against the mapped headers
     function findColumnIndex(colMap, searchTitle) {
         const target = cleanText(searchTitle);
-        // Direct match
         if (colMap[target] !== undefined) return colMap[target];
 
-        // Fuzzy/partial match (e.g. "loan id" inside "loan id #")
         for (const [headerText, index] of Object.entries(colMap)) {
             if (headerText.includes(target) || target.includes(headerText)) {
                 return index;
@@ -90,18 +168,14 @@
         return -1;
     }
 
-    // Extracts text and any link (anchor tag) within a specific cell
     function extractCellData(cell) {
         if (!cell) return { text: '-', url: null };
-
         const anchor = cell.querySelector('a');
         const text = cell.innerText.trim() || '-';
         const url = anchor ? anchor.href : null;
-
         return { text, url };
     }
 
-    // Helper: Extracts a full row by matching an array of expected titles
     function extractRowByTitles(rowElement, colMap, titleList) {
         return titleList.map(title => {
             const colIndex = findColumnIndex(colMap, title);
@@ -112,7 +186,16 @@
         });
     }
 
-    // Helper to format documents into horizontal rows (max 3 per row)
+    function findDocumentTable(doc) {
+        const tables = Array.from(doc.querySelectorAll('table'));
+        return tables.find(tbl => {
+            const text = cleanText(tbl.innerText);
+            return text.includes(cleanText(CONFIG.documents.name)) &&
+                   text.includes(cleanText(CONFIG.documents.id));
+        }) || doc.querySelector('.document-section-div table, table');
+    }
+
+    // Formats documents horizontally up to 3 per row
     function renderDocumentGrid(docs) {
         if (!docs || docs.length === 0) {
             return '<p style="margin: 0; color: #777777; font-style: italic; font-size: 8pt;">No associated documents indexed.</p>';
@@ -147,7 +230,7 @@
         `;
     }
 
-    // --- 3. DOM FETCH & DOCUMENT EXTRACTOR ---
+    // --- 5. DOM FETCH & DOCUMENT EXTRACTOR ---
     async function fetchDoc(url) {
         console.log(`Fetching: ${url}`);
         const res = await fetch(url, { credentials: 'include' });
@@ -159,25 +242,23 @@
     async function extractRecordDocs(recordUrl) {
         try {
             const doc = await fetchDoc(recordUrl);
-            const docTable = doc.querySelector('.document-section-div table, table');
+            const docTable = findDocumentTable(doc);
             if (!docTable) return [];
 
             const colMap = getTableColumnMap(docTable);
-            const idIdx = findColumnIndex(colMap, COLUMN_TITLES.documents.id);
-            const nameIdx = findColumnIndex(colMap, COLUMN_TITLES.documents.name);
-            const notesIdx = findColumnIndex(colMap, COLUMN_TITLES.documents.notes);
+            const idIdx = findColumnIndex(colMap, CONFIG.documents.id);
+            const nameIdx = findColumnIndex(colMap, CONFIG.documents.name);
+            const notesIdx = findColumnIndex(colMap, CONFIG.documents.notes);
 
             const rows = Array.from(docTable.querySelectorAll('tbody tr, tr:not(:first-child)'));
             const records = [];
 
             rows.forEach(tr => {
-                // Ignore sub-rows or empty rows
                 if (tr.children.length < 2) return;
 
                 const idCell = extractCellData(tr.children[idIdx !== -1 ? idIdx : 0]);
                 const nameCell = extractCellData(tr.children[nameIdx !== -1 ? nameIdx : 1]);
                 
-                // Notes could be in an indexed cell, a sibling .notes-row, or adjacent column
                 let noteText = '';
                 if (notesIdx !== -1 && tr.children[notesIdx]) {
                     noteText = tr.children[notesIdx].innerText.trim();
@@ -199,35 +280,45 @@
             });
             return records;
         } catch (err) {
-            console.error(`Error reading record: ${recordUrl}`, err);
+            console.error(`Error reading record docs: ${recordUrl}`, err);
             return [];
         }
     }
 
     // =========================================================================
-    // 4. MAIN EXTRACTION PIPELINE
+    // 6. MAIN SCRAPING WORKFLOW
     // =========================================================================
     try {
-        console.log(`Extracting data for Event: ${eventId}...`);
+        console.log(`Starting QC Extraction for Event: ${eventId}...`);
 
-        // --- STEP 1: EVENT OVERVIEW (Base Table Search) ---
-        let overviewCells = [];
+        // --- STEP 1: EVENT OVERVIEW (Inputs/Labels + Overview Table) ---
+        const overviewFormResults = [];
+        let overviewTableCells = [];
+        
         try {
             const baseDoc = await fetchDoc(urls.base);
+
+            // A. Scrape Non-Table Form Labels / Inputs
+            CONFIG.overviewLabels.forEach(label => {
+                const val = extractFormField(baseDoc, label);
+                overviewFormResults.push({ label, val });
+            });
+
+            // B. Scrape Overview Table
             const baseTable = baseDoc.querySelector('#event-overview-div table, table');
             if (baseTable) {
                 const colMap = getTableColumnMap(baseTable);
                 const firstRow = baseTable.querySelector('tbody tr, tr:nth-child(2)');
                 if (firstRow) {
-                    overviewCells = extractRowByTitles(firstRow, colMap, COLUMN_TITLES.overview);
+                    overviewTableCells = extractRowByTitles(firstRow, colMap, CONFIG.overviewTableColumns);
                 }
             }
         } catch (e) {
-            console.warn("Base overview lookup failed; fallback to blank fields.", e);
+            console.warn("Base overview fetch warning:", e);
         }
 
-        while (overviewCells.length < COLUMN_TITLES.overview.length) {
-            overviewCells.push({ text: '-', url: null });
+        while (overviewTableCells.length < CONFIG.overviewTableColumns.length) {
+            overviewTableCells.push({ text: '-', url: null });
         }
 
         // --- STEP 2: DETERMINATIONS (SFHD List & Records) ---
@@ -238,16 +329,21 @@
         const sfhdData = [];
 
         for (const row of sfhdRows) {
-            const extractedRow = extractRowByTitles(row, sfhdColMap, COLUMN_TITLES.determinations);
-            const detIdObj = extractedRow[0]; // "Det ID"
+            const extractedRow = extractRowByTitles(row, sfhdColMap, CONFIG.determinations);
+            const detIdObj = extractedRow[0]; // Det ID
             if (!detIdObj || detIdObj.text === '-') continue;
 
             const recordUrl = detIdObj.url || urls.sfhd_record(detIdObj.text);
             const docs = await extractRecordDocs(recordUrl);
 
+            // Scrape or locate address verification source
+            const addrSource = extractFormField(row, "Address verification source") !== '-'
+                ? extractFormField(row, "Address verification source")
+                : (row.querySelector('.address-source')?.innerText?.trim() || '');
+
             sfhdData.push({
                 cells: extractedRow,
-                addressSource: row.querySelector('.address-source')?.innerText?.trim() || '',
+                addressSource: addrSource,
                 docs: docs
             });
             await new Promise(r => setTimeout(r, 200));
@@ -261,8 +357,8 @@
         const colData = [];
 
         for (const row of colRows) {
-            const extractedRow = extractRowByTitles(row, colMap, COLUMN_TITLES.collateral);
-            const colIdObj = extractedRow[0]; // "Collat ID"
+            const extractedRow = extractRowByTitles(row, colMap, CONFIG.collateral);
+            const colIdObj = extractedRow[0]; // Collat ID
             if (!colIdObj || colIdObj.text === '-') continue;
 
             const recordUrl = colIdObj.url || urls.col_record(colIdObj.text);
@@ -288,7 +384,7 @@
         });
 
         // =========================================================================
-        // 5. BUILD EXCEL-STYLE REPORT HTML (WELLS FARGO THEME)
+        // 7. BUILD FINAL EXCEL-STYLE WELLS FARGO REPORT HTML
         // =========================================================================
         const compiledHtml = `
         <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
@@ -321,22 +417,40 @@
                 </table>
             </div>
 
-            <!-- 1. Event Overview -->
+            <!-- ========================================================= -->
+            <!-- 1. EVENT OVERVIEW (Labels/Inputs Block + 13-Col Table)    -->
+            <!-- ========================================================= -->
             <div style="margin-bottom: 22px;">
                 <div style="border-bottom: 2px solid #F4A900; padding-bottom: 3px; margin-bottom: 6px;">
                     <h2 style="mso-outline-level: 2; mso-style-name: 'Heading 2'; font-size: 11pt; font-weight: bold; color: #A6192E; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">
                         Event Overview
                     </h2>
                 </div>
+
+                <!-- Non-table Form Inputs / Labels Block -->
+                ${overviewFormResults.length > 0 ? `
+                <table border="1" cellpadding="4" cellspacing="0" style="border-collapse: collapse; width: 100%; border: 1px solid #D5D5D5; font-size: 8pt; margin-bottom: 8px; background-color: #FDFBF7;">
+                    <tr>
+                        ${overviewFormResults.map(item => `
+                            <td style="border: 1px solid #E0E0E0; padding: 4px 6px; vertical-align: top;">
+                                <div style="font-weight: bold; color: #A6192E; font-size: 7.5pt; text-transform: uppercase;">${escapeHtml(item.label)}</div>
+                                <div style="color: #222222; font-weight: bold; margin-top: 2px;">${escapeHtml(item.val)}</div>
+                            </td>
+                        `).join('')}
+                    </tr>
+                </table>
+                ` : ''}
+
+                <!-- Overview Table (13 Columns) -->
                 <table border="1" cellpadding="4" cellspacing="0" style="border-collapse: collapse; width: 100%; border: 1px solid #CCCCCC; font-size: 7.2pt; table-layout: fixed; word-break: break-word;">
                     <thead>
                         <tr style="background-color: #A6192E; color: #FFFFFF; text-align: center;">
-                            ${COLUMN_TITLES.overview.map(title => `<th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">${escapeHtml(title)}</th>`).join('')}
+                            ${CONFIG.overviewTableColumns.map(title => `<th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">${escapeHtml(title)}</th>`).join('')}
                         </tr>
                     </thead>
                     <tbody>
                         <tr style="text-align: center; background-color: #FFFFFF;">
-                            ${overviewCells.map(c => `
+                            ${overviewTableCells.map(c => `
                                 <td style="border: 1px solid #CCCCCC; padding: 4px 2px;">
                                     ${c.url ? `<a href="${escapeHtml(c.url)}" style="color: #A6192E; font-weight: bold;">${escapeHtml(c.text)}</a>` : escapeHtml(c.text)}
                                 </td>
@@ -346,7 +460,9 @@
                 </table>
             </div>
 
-            <!-- 2. Determinations -->
+            <!-- ========================================================= -->
+            <!-- 2. DETERMINATIONS                                         -->
+            <!-- ========================================================= -->
             <div style="margin-bottom: 22px;">
                 <div style="border-bottom: 2px solid #F4A900; padding-bottom: 3px; margin-bottom: 6px;">
                     <h2 style="mso-outline-level: 2; mso-style-name: 'Heading 2'; font-size: 11pt; font-weight: bold; color: #A6192E; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">
@@ -356,7 +472,7 @@
                 <table border="1" cellpadding="4" cellspacing="0" style="border-collapse: collapse; width: 100%; border: 1px solid #CCCCCC; font-size: 7.5pt; table-layout: fixed; word-break: break-word;">
                     <thead>
                         <tr style="background-color: #A6192E; color: #FFFFFF; text-align: center;">
-                            ${COLUMN_TITLES.determinations.map(title => `<th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">${escapeHtml(title)}</th>`).join('')}
+                            ${CONFIG.determinations.map(title => `<th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">${escapeHtml(title)}</th>`).join('')}
                         </tr>
                     </thead>
                     <tbody>
@@ -369,7 +485,7 @@
                                 `).join('')}
                             </tr>
                             <tr style="background-color: #FDFBF7;">
-                                <td colspan="${COLUMN_TITLES.determinations.length}" style="border: 1px solid #CCCCCC; padding: 6px 10px; border-left: 3px solid #F4A900;">
+                                <td colspan="${CONFIG.determinations.length}" style="border: 1px solid #CCCCCC; padding: 6px 10px; border-left: 3px solid #F4A900;">
                                     <div style="font-size: 8pt; margin-bottom: 6px;">
                                         <div style="font-weight: bold; color: #A6192E;">Address verification source:</div>
                                         <div style="color: #333333; margin-top: 1px;">${escapeHtml(item.addressSource) || '&nbsp;'}</div>
@@ -382,7 +498,9 @@
                 </table>
             </div>
 
-            <!-- 3. Collateral -->
+            <!-- ========================================================= -->
+            <!-- 3. COLLATERAL                                             -->
+            <!-- ========================================================= -->
             <div style="margin-bottom: 22px;">
                 <div style="border-bottom: 2px solid #F4A900; padding-bottom: 3px; margin-bottom: 6px;">
                     <h2 style="mso-outline-level: 2; mso-style-name: 'Heading 2'; font-size: 11pt; font-weight: bold; color: #A6192E; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">
@@ -392,7 +510,7 @@
                 <table border="1" cellpadding="4" cellspacing="0" style="border-collapse: collapse; width: 100%; border: 1px solid #CCCCCC; font-size: 7.2pt; table-layout: fixed; word-break: break-word;">
                     <thead>
                         <tr style="background-color: #A6192E; color: #FFFFFF; text-align: center;">
-                            ${COLUMN_TITLES.collateral.map(title => `<th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">${escapeHtml(title)}</th>`).join('')}
+                            ${CONFIG.collateral.map(title => `<th style="border: 1px solid #B84353; padding: 5px 2px; font-weight: bold;">${escapeHtml(title)}</th>`).join('')}
                         </tr>
                     </thead>
                     <tbody>
@@ -405,7 +523,7 @@
                                 `).join('')}
                             </tr>
                             <tr style="background-color: #FDFBF7;">
-                                <td colspan="${COLUMN_TITLES.collateral.length}" style="border: 1px solid #CCCCCC; padding: 6px 10px; border-left: 3px solid #F4A900;">
+                                <td colspan="${CONFIG.collateral.length}" style="border: 1px solid #CCCCCC; padding: 6px 10px; border-left: 3px solid #F4A900;">
                                     ${renderDocumentGrid(item.docs)}
                                 </td>
                             </tr>
@@ -414,7 +532,9 @@
                 </table>
             </div>
 
-            <!-- 4. Documents -->
+            <!-- ========================================================= -->
+            <!-- 4. DOCUMENTS                                              -->
+            <!-- ========================================================= -->
             <div style="margin-bottom: 15px;">
                 <div style="border-bottom: 2px solid #F4A900; padding-bottom: 3px; margin-bottom: 8px;">
                     <h2 style="mso-outline-level: 2; mso-style-name: 'Heading 2'; font-size: 11pt; font-weight: bold; color: #A6192E; margin: 0; text-transform: uppercase; letter-spacing: 0.5px;">
@@ -441,7 +561,7 @@
         </html>`;
 
         // =========================================================================
-        // 6. CLIPBOARD SELECTION COPY & DOC DOWNLOAD
+        // 8. CLIPBOARD COPY (NATIVE DOM SELECTION) & DIRECT WORD DOWNLOAD
         // =========================================================================
         const tempDiv = document.createElement('div');
         tempDiv.style.position = 'fixed';
